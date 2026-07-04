@@ -1,0 +1,22 @@
+{
+  "elements": [
+    {
+      "type": "NumberSpinner",
+      "name": "PlayerID",
+      "caption": "Player-ID (1..N)",
+      "minimum": 1,
+      "maximum": 64
+    }
+  ],
+  "actions": [
+    {
+      "type": "Button",
+      "caption": "Werte jetzt aktualisieren",
+      "onClick": "ANPP_Refresh($id);"
+    }
+  ],
+  "status": [
+    { "code": 102, "icon": "active", "caption": "OK" },
+    { "code": 104, "icon": "inactive", "caption": "Kein Controller / Player unbekannt" }
+  ]
+}

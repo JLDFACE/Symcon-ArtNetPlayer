@@ -1,0 +1,17 @@
+{
+  "id": "{AE7C1A00-0001-47AE-B000-0000000000C1}",
+  "name": "ArtNetPlayerController",
+  "type": 1,
+  "vendor": "FACE",
+  "aliases": [
+    "Art-Net Player Controller"
+  ],
+  "parentRequirements": [],
+  "childRequirements": [
+    "{AE7C1A00-0003-47AE-B000-0000000000E3}"
+  ],
+  "implemented": [
+    "{AE7C1A00-0003-47AE-B000-0000000000E3}"
+  ],
+  "prefix": "ANP"
+}

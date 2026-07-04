@@ -1,0 +1,34 @@
+{
+  "id": "{AE7C1A00-0000-47AE-B000-0000000000A0}",
+  "author": "FACE GmbH",
+  "name": "Art-Net DMX Player",
+  "url": "https://github.com/JLDFACE/Symcon-ArtNetPlayer",
+  "compatibility": {
+    "version": "6.0"
+  },
+  "version": "1.0",
+  "build": 100,
+  "date": 20260705,
+  "modules": [
+    {
+      "id": "{AE7C1A00-0001-47AE-B000-0000000000C1}",
+      "name": "ArtNetPlayerController",
+      "type": 1,
+      "vendor": "FACE",
+      "aliases": ["Art-Net Player Controller"],
+      "parentRequirements": [],
+      "childRequirements": ["{AE7C1A00-0003-47AE-B000-0000000000E3}"],
+      "implemented": ["{AE7C1A00-0003-47AE-B000-0000000000E3}"]
+    },
+    {
+      "id": "{AE7C1A00-0002-47AE-B000-0000000000D2}",
+      "name": "ArtNetPlayer",
+      "type": 3,
+      "vendor": "FACE",
+      "aliases": ["Art-Net Player"],
+      "parentRequirements": ["{AE7C1A00-0003-47AE-B000-0000000000E3}"],
+      "childRequirements": [],
+      "implemented": []
+    }
+  ]
+}
