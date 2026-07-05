@@ -96,12 +96,29 @@ class ArtNetPlayer extends IPSModule
         $this->SendToParent('master', array('player' => (int)$this->ReadPropertyInteger('PlayerID'), 'value' => $v));
     }
 
-    // Helligkeitsaenderung schaltet ein: wenn aus, erst einschalten (wie Power-Toggle)
+    // Helligkeitsaenderung schaltet ein: wenn aus ODER Szene = Aus-Programm laeuft
+    // -> On-Programm starten (bzw. 'on', falls kein OnProgram gesetzt).
     private function EnsureOnForDim()
     {
-        if (!(bool)$this->GetValue('Power')) {
-            $this->SetValueSafe('Power', true);
-            $this->SendToParent('on', array('player' => (int)$this->ReadPropertyInteger('PlayerID')));
+        $pid = (int)$this->ReadPropertyInteger('PlayerID');
+        $isOff = !(bool)$this->GetValue('Power');
+        if (!$isOff) {
+            // Power meldet "an" – laeuft aber gerade das Aus-Programm? Dann auch als aus behandeln.
+            $offProg = (string)$this->ReadPropertyString('OffProgram');
+            if ($offProg !== '') {
+                $names = json_decode($this->GetBuffer('Programs'), true);
+                $idx = (int)$this->GetValue('Program');
+                $cur = (is_array($names) && isset($names[$idx])) ? (string)$names[$idx] : '';
+                if ($cur === $offProg) $isOff = true;
+            }
+        }
+        if (!$isOff) return;
+        $this->SetValueSafe('Power', true);
+        $onProg = (string)$this->ReadPropertyString('OnProgram');
+        if ($onProg !== '') {
+            $this->SendToParent('play', array('player' => $pid, 'program' => $onProg));
+        } else {
+            $this->SendToParent('on', array('player' => $pid));
         }
     }
 
