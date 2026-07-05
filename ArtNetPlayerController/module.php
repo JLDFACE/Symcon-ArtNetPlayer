@@ -4,6 +4,7 @@ class ArtNetPlayerController extends IPSModule
 {
     // Datenschnittstelle Parent <-> Child
     private $DataID = '{AE7C1A00-0003-47AE-B000-0000000000E3}';
+    private $PlayerModuleID = '{AE7C1A00-0002-47AE-B000-0000000000D2}';
 
     public function Create()
     {
@@ -41,6 +42,18 @@ class ArtNetPlayerController extends IPSModule
         $cmd = isset($d['cmd']) ? (string)$d['cmd'] : '';
         $a = (isset($d['arg']) && is_array($d['arg'])) ? $d['arg'] : array();
         $pid = isset($a['player']) ? (int)$a['player'] : 0;
+
+        // Programme eines Players zurueckgeben (fuer die Ein/Aus-Programmauswahl)
+        if ($cmd == 'get_programs') {
+            $ok = true;
+            $body = $this->Http('GET', "/player/$pid/programs", null, $ok);
+            $list = json_decode($body, true);
+            $names = array();
+            if (is_array($list)) {
+                foreach ($list as $pr) if (isset($pr['name'])) $names[] = (string)$pr['name'];
+            }
+            return json_encode(array('ok' => $ok, 'programs' => $names));
+        }
 
         $ok = true;
         switch ($cmd) {
@@ -84,6 +97,59 @@ class ArtNetPlayerController extends IPSModule
     {
         $ok = true;
         return $this->Http('GET', '/status', null, $ok);
+    }
+
+    // ----- Discovery: Player aus dem Tool auflisten + Instanzen anlegen -----
+    public function GetConfigurationForm()
+    {
+        $form = json_decode(file_get_contents(__DIR__ . '/form.json'), true);
+
+        // Player vom Tool holen
+        $ok = true;
+        $players = array();
+        $body = $this->Http('GET', '/status', null, $ok);
+        if ($ok) {
+            $st = json_decode($body, true);
+            if (isset($st['engine']['players'])) $players = $st['engine']['players'];
+        }
+
+        // vorhandene Player-Instanzen dieses Controllers nach PlayerID
+        $existing = array();
+        foreach (IPS_GetInstanceListByModuleID($this->PlayerModuleID) as $iid) {
+            if (IPS_GetInstance($iid)['ConnectionID'] == $this->InstanceID) {
+                $existing[(int)IPS_GetProperty($iid, 'PlayerID')] = $iid;
+            }
+        }
+
+        $values = array();
+        foreach ($players as $p) {
+            $pid = (int)$p['id'];
+            $values[] = array(
+                'name' => isset($p['name']) ? $p['name'] : ('Player ' . $pid),
+                'pid'  => $pid,
+                'instanceID' => isset($existing[$pid]) ? $existing[$pid] : 0,
+                'create' => array(
+                    'moduleID' => $this->PlayerModuleID,
+                    'name' => isset($p['name']) ? $p['name'] : ('Player ' . $pid),
+                    'configuration' => array('PlayerID' => $pid)
+                )
+            );
+        }
+
+        $form['actions'][] = array(
+            'type' => 'Configurator',
+            'name' => 'PlayerConfigurator',
+            'caption' => 'Player (Discovery)',
+            'rowCount' => max(3, min(14, count($values))),
+            'add' => false,
+            'delete' => true,
+            'columns' => array(
+                array('caption' => 'Player', 'name' => 'name', 'width' => 'auto'),
+                array('caption' => 'ID', 'name' => 'pid', 'width' => '80px')
+            ),
+            'values' => $values
+        );
+        return json_encode($form);
     }
 
     // ----- HTTP-Helfer (REST gegen das NAS-Tool) -----
