@@ -77,6 +77,36 @@ class ArtNetPlayer extends IPSModule
         $this->SendToParent('refresh', array('player' => (int)$this->ReadPropertyInteger('PlayerID')));
     }
 
+    // ---- Public Steuer-Funktionen (fuer Symcon-Skripte/Ereignisse) ----
+    // Gezielt ein Programm starten: ANPP_PlayProgram($id, "TV")
+    public function PlayProgram(string $name)
+    {
+        $this->SendToParent('play', array('player' => (int)$this->ReadPropertyInteger('PlayerID'), 'program' => $name));
+    }
+    // Normaler Ein/Aus wie am KNX-Schalter (nutzt On-/OffProgram der Instanz)
+    public function On()  { $this->_switch(true); }
+    public function Off() { $this->_switch(false); }
+    // Einfach ausschalten (direktes /off, ignoriert OffProgram)
+    public function TurnOff() { $this->SendToParent('off', array('player' => (int)$this->ReadPropertyInteger('PlayerID'))); }
+    public function Stop()    { $this->SendToParent('stop', array('player' => (int)$this->ReadPropertyInteger('PlayerID'))); }
+    public function SetMasterValue(int $v)
+    {
+        $v = max(0, min(100, (int)$v));
+        $this->SendToParent('master', array('player' => (int)$this->ReadPropertyInteger('PlayerID'), 'value' => $v));
+    }
+
+    // Normaler Ein/Aus: OnProgram bzw. OffProgram spielen, sonst /on bzw. /off
+    private function _switch($on)
+    {
+        $pid = (int)$this->ReadPropertyInteger('PlayerID');
+        $prog = $on ? (string)$this->ReadPropertyString('OnProgram') : (string)$this->ReadPropertyString('OffProgram');
+        if ($prog !== '') {
+            $this->SendToParent('play', array('player' => $pid, 'program' => $prog));
+        } else {
+            $this->SendToParent($on ? 'on' : 'off', array('player' => $pid));
+        }
+    }
+
     // ---- WebFront/Action ----
     public function RequestAction($Ident, $Value)
     {
@@ -110,13 +140,7 @@ class ArtNetPlayer extends IPSModule
         $pid = (int)$this->ReadPropertyInteger('PlayerID');
 
         if ($SenderID == (int)$this->ReadPropertyInteger('KnxSwitchVarID')) {
-            $on = (bool)GetValue($SenderID);
-            $prog = $on ? (string)$this->ReadPropertyString('OnProgram') : (string)$this->ReadPropertyString('OffProgram');
-            if ($prog !== '') {
-                $this->SendToParent('play', array('player' => $pid, 'program' => $prog));
-            } else {
-                $this->SendToParent($on ? 'on' : 'off', array('player' => $pid));
-            }
+            $this->_switch((bool)GetValue($SenderID));
 
         } elseif ($SenderID == (int)$this->ReadPropertyInteger('KnxAbsDimVarID')) {
             $v = max(0, min(100, (int)GetValue($SenderID)));
