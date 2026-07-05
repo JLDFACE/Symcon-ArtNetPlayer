@@ -93,6 +93,12 @@ class ArtNetPlayer extends IPSModule
     {
         $this->SendToParent('play', array('player' => (int)$this->ReadPropertyInteger('PlayerID'), 'program' => $name));
     }
+    // Programm als Aus-Szene abspielen: einmal durch, am Ende echtes Aus.
+    // Fuer richtungsabhaengige Aus-Programme (z.B. Treppe): ANPP_PlayProgramOff($id, "Unten Aus")
+    public function PlayProgramOff(string $name)
+    {
+        $this->SendToParent('play_off', array('player' => (int)$this->ReadPropertyInteger('PlayerID'), 'program' => $name));
+    }
     // Normaler Ein/Aus wie am KNX-Schalter (nutzt On-/OffProgram der Instanz)
     public function On()  { $this->_switch(true); }
     public function Off() { $this->_switch(false); }
