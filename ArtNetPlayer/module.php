@@ -92,7 +92,17 @@ class ArtNetPlayer extends IPSModule
     public function SetMasterValue(int $v)
     {
         $v = max(0, min(100, (int)$v));
+        if ($v > 0) $this->EnsureOnForDim();
         $this->SendToParent('master', array('player' => (int)$this->ReadPropertyInteger('PlayerID'), 'value' => $v));
+    }
+
+    // Helligkeitsaenderung schaltet ein: wenn aus, erst einschalten (wie Power-Toggle)
+    private function EnsureOnForDim()
+    {
+        if (!(bool)$this->GetValue('Power')) {
+            $this->SetValueSafe('Power', true);
+            $this->SendToParent('on', array('player' => (int)$this->ReadPropertyInteger('PlayerID')));
+        }
     }
 
     // Normaler Ein/Aus: OnProgram bzw. OffProgram spielen, sonst /on bzw. /off
@@ -117,6 +127,7 @@ class ArtNetPlayer extends IPSModule
             $this->SendToParent($on ? 'on' : 'off', array('player' => $pid));
         } elseif ($Ident == 'Master') {
             $v = max(0, min(100, (int)$Value));
+            if ($v > 0) $this->EnsureOnForDim();
             $this->SetValueSafe('Master', $v);
             $this->SendToParent('master', array('player' => $pid, 'value' => $v));
         } elseif ($Ident == 'Program') {
@@ -144,6 +155,7 @@ class ArtNetPlayer extends IPSModule
 
         } elseif ($SenderID == (int)$this->ReadPropertyInteger('KnxAbsDimVarID')) {
             $v = max(0, min(100, (int)GetValue($SenderID)));
+            if ($v > 0) $this->EnsureOnForDim();
             $this->SetValueSafe('Master', $v);
             $this->SendToParent('master', array('player' => $pid, 'value' => $v));
 
@@ -169,6 +181,7 @@ class ArtNetPlayer extends IPSModule
         $cur = (int)$this->GetValue('Master');
         $new = max(0, min(100, $cur + ($up ? $step : -$step)));
         if ($new != $cur) {
+            if ($new > 0) $this->EnsureOnForDim();
             $this->SetValueSafe('Master', $new);
             $this->SendToParent('master', array('player' => $pid, 'value' => $new));
         }
