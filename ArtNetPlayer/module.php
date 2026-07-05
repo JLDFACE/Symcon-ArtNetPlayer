@@ -122,13 +122,14 @@ class ArtNetPlayer extends IPSModule
         }
     }
 
-    // Normaler Ein/Aus: OnProgram bzw. OffProgram spielen, sonst /on bzw. /off
+    // Normaler Ein/Aus: OnProgram spielen bzw. OffProgram als Aus-Szene abspielen
+    // (laeuft einmal durch, dann echtes Aus). Ohne Programm: /on bzw. /off.
     private function _switch($on)
     {
         $pid = (int)$this->ReadPropertyInteger('PlayerID');
         $prog = $on ? (string)$this->ReadPropertyString('OnProgram') : (string)$this->ReadPropertyString('OffProgram');
         if ($prog !== '') {
-            $this->SendToParent('play', array('player' => $pid, 'program' => $prog));
+            $this->SendToParent($on ? 'play' : 'play_off', array('player' => $pid, 'program' => $prog));
         } else {
             $this->SendToParent($on ? 'on' : 'off', array('player' => $pid));
         }
@@ -141,7 +142,7 @@ class ArtNetPlayer extends IPSModule
         if ($Ident == 'Power') {
             $on = (bool)$Value;
             $this->SetValueSafe('Power', $on);
-            $this->SendToParent($on ? 'on' : 'off', array('player' => $pid));
+            $this->_switch($on);   // Ein = OnProgram, Aus = Aus-Szene (dann echtes Aus)
         } elseif ($Ident == 'Master') {
             $v = max(0, min(100, (int)$Value));
             if ($v > 0) $this->EnsureOnForDim();

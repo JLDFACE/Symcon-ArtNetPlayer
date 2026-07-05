@@ -63,6 +63,7 @@ class ArtNetPlayerController extends IPSModule
             case 'pause':  $this->Http('POST', "/player/$pid/pause", null, $ok); break;
             case 'master': $this->Http('POST', "/player/$pid/master", array('value' => (int)$a['value']), $ok); break;
             case 'play':   $this->Http('POST', "/player/$pid/play", array('program' => (string)$a['program']), $ok); break;
+            case 'play_off': $this->Http('POST', "/player/$pid/play_off", array('program' => (string)$a['program']), $ok); break;
             case 'config': $this->Http('POST', "/player/$pid/config", isset($a['config']) ? $a['config'] : array(), $ok); break;
             case 'refresh': break;
             default: $ok = false;
