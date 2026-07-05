@@ -157,17 +157,28 @@ class ArtNetPlayerController extends IPSModule
         $st = json_decode($body, true);
         $players = isset($st['engine']['players']) ? $st['engine']['players'] : array();
 
-        $existing = array();
+        // vorhandene Player-Instanzen nach PlayerID (egal an welchem Parent) sammeln
+        $byPid = array();
         foreach (IPS_GetInstanceListByModuleID($this->PlayerModuleID) as $iid) {
-            if (IPS_GetInstance($iid)['ConnectionID'] == $this->InstanceID) {
-                $existing[(int)IPS_GetProperty($iid, 'PlayerID')] = $iid;
-            }
+            $byPid[(int)IPS_GetProperty($iid, 'PlayerID')][] = $iid;
         }
 
-        $created = 0;
+        $created = 0; $connected = 0;
         foreach ($players as $p) {
             $pid = (int)$p['id'];
-            if (isset($existing[$pid])) continue;
+            if (isset($byPid[$pid])) {
+                // existiert schon -> sicherstellen, dass eine mit DIESEM Controller verbunden ist
+                $hasConn = false;
+                foreach ($byPid[$pid] as $iid) {
+                    if (IPS_GetInstance($iid)['ConnectionID'] == $this->InstanceID) { $hasConn = true; break; }
+                }
+                if (!$hasConn) {
+                    @IPS_ConnectInstance($byPid[$pid][0], $this->InstanceID);
+                    IPS_ApplyChanges($byPid[$pid][0]);
+                    $connected++;
+                }
+                continue;
+            }
             $iid = IPS_CreateInstance($this->PlayerModuleID);
             IPS_SetName($iid, isset($p['name']) ? $p['name'] : ('Player ' . $pid));
             @IPS_ConnectInstance($iid, $this->InstanceID);
@@ -175,7 +186,10 @@ class ArtNetPlayerController extends IPSModule
             IPS_ApplyChanges($iid);
             $created++;
         }
-        echo $created > 0 ? ($created . ' Player-Instanz(en) angelegt.') : 'Alle Player sind bereits als Instanz vorhanden.';
+        $msg = array();
+        if ($created > 0) $msg[] = $created . ' angelegt';
+        if ($connected > 0) $msg[] = $connected . ' verbunden';
+        echo count($msg) ? ('Player: ' . implode(', ', $msg) . '.') : 'Alle Player sind bereits als verbundene Instanz vorhanden.';
     }
 
     // ----- HTTP-Helfer (REST gegen das NAS-Tool) -----
