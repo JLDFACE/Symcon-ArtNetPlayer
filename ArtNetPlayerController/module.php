@@ -127,29 +127,55 @@ class ArtNetPlayerController extends IPSModule
             $values[] = array(
                 'name' => isset($p['name']) ? $p['name'] : ('Player ' . $pid),
                 'pid'  => $pid,
-                'instanceID' => isset($existing[$pid]) ? $existing[$pid] : 0,
-                'create' => array(
-                    'moduleID' => $this->PlayerModuleID,
-                    'name' => isset($p['name']) ? $p['name'] : ('Player ' . $pid),
-                    'configuration' => array('PlayerID' => $pid)
-                )
+                'state' => isset($existing[$pid]) ? '✓ Instanz vorhanden' : '– fehlt'
             );
         }
 
         $form['actions'][] = array(
-            'type' => 'Configurator',
-            'name' => 'PlayerConfigurator',
-            'caption' => 'Player (Discovery)',
-            'rowCount' => max(3, min(14, count($values))),
-            'add' => false,
-            'delete' => true,
+            'type' => 'List', 'name' => 'PlayerList', 'caption' => 'Player im Tool (Discovery)',
+            'rowCount' => max(2, min(14, count($values))),
             'columns' => array(
                 array('caption' => 'Player', 'name' => 'name', 'width' => 'auto'),
-                array('caption' => 'ID', 'name' => 'pid', 'width' => '80px')
+                array('caption' => 'ID', 'name' => 'pid', 'width' => '70px'),
+                array('caption' => 'Symcon', 'name' => 'state', 'width' => '160px')
             ),
             'values' => $values
         );
+        $form['actions'][] = array(
+            'type' => 'Button', 'caption' => 'Fehlende Player-Instanzen anlegen',
+            'onClick' => 'ANP_SyncPlayers($id);'
+        );
         return json_encode($form);
+    }
+
+    // Legt fuer jeden Player im Tool eine verbundene Instanz an (falls fehlend)
+    public function SyncPlayers()
+    {
+        $ok = true;
+        $body = $this->Http('GET', '/status', null, $ok);
+        if (!$ok) { echo 'Tool nicht erreichbar – Host/Port pruefen.'; return; }
+        $st = json_decode($body, true);
+        $players = isset($st['engine']['players']) ? $st['engine']['players'] : array();
+
+        $existing = array();
+        foreach (IPS_GetInstanceListByModuleID($this->PlayerModuleID) as $iid) {
+            if (IPS_GetInstance($iid)['ConnectionID'] == $this->InstanceID) {
+                $existing[(int)IPS_GetProperty($iid, 'PlayerID')] = $iid;
+            }
+        }
+
+        $created = 0;
+        foreach ($players as $p) {
+            $pid = (int)$p['id'];
+            if (isset($existing[$pid])) continue;
+            $iid = IPS_CreateInstance($this->PlayerModuleID);
+            IPS_SetName($iid, isset($p['name']) ? $p['name'] : ('Player ' . $pid));
+            @IPS_ConnectInstance($iid, $this->InstanceID);
+            IPS_SetProperty($iid, 'PlayerID', $pid);
+            IPS_ApplyChanges($iid);
+            $created++;
+        }
+        echo $created > 0 ? ($created . ' Player-Instanz(en) angelegt.') : 'Alle Player sind bereits als Instanz vorhanden.';
     }
 
     // ----- HTTP-Helfer (REST gegen das NAS-Tool) -----
