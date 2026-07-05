@@ -22,7 +22,19 @@
     { "type": "SelectVariable", "name": "KnxRelDimVarID",       "caption": "Rel. Dimmen (Integer, KNX 4-bit DPT 3.007)" },
     { "type": "NumberSpinner",  "name": "KnxStepPercent",       "caption": "Rel-Dim Schrittgröße (%)", "minimum": 1, "maximum": 25 },
     { "type": "SelectVariable", "name": "KnxStatusLevelVarID",  "caption": "Status Dimmwert % (raus, DPT 5.001)" },
-    { "type": "SelectVariable", "name": "KnxStatusSwitchVarID", "caption": "Status Ein/Aus (raus, DPT 1.001)" }
+    { "type": "SelectVariable", "name": "KnxStatusSwitchVarID", "caption": "Status Ein/Aus (raus, DPT 1.001)" },
+    { "type": "Label", "bold": true, "caption": "Gruppen-Dimmer (Adressen im Tool/Monitor definieren) → optional KNX" },
+    { "type": "Label", "caption": "Je Gruppe entsteht automatisch eine Dimmer-Variable. Hier optional KNX-Adressen zuordnen." },
+    { "type": "List", "name": "GroupKnx", "caption": "Gruppen-KNX", "add": true, "delete": true, "rowCount": 4,
+      "columns": [
+        { "caption": "Gruppe", "name": "group", "width": "180px", "add": 0,
+          "edit": { "type": "Select", "options": [ { "caption": "—", "value": 0 } ] } },
+        { "caption": "Abs. Dimmen (0..100 %)", "name": "dim", "width": "260px", "add": 0,
+          "edit": { "type": "SelectVariable" } },
+        { "caption": "Status Dimmwert % (raus)", "name": "status", "width": "260px", "add": 0,
+          "edit": { "type": "SelectVariable" } }
+      ]
+    }
   ],
   "actions": [
     { "type": "Button", "caption": "Werte jetzt aktualisieren", "onClick": "ANPP_Refresh($id);" }

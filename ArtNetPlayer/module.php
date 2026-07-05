@@ -24,6 +24,8 @@ class ArtNetPlayer extends IPSModule
         $this->RegisterPropertyInteger('KnxStepPercent', 8);
         $this->RegisterPropertyInteger('KnxStatusLevelVarID', 0);
         $this->RegisterPropertyInteger('KnxStatusSwitchVarID', 0);
+        // Gruppen-Dimmer <-> KNX: [{group:id, dim:varid, status:varid}]
+        $this->RegisterPropertyString('GroupKnx', '[]');
 
         $this->SetBuffer('Programs', json_encode(array()));
         $this->SetBuffer('RelDir', '1');
@@ -68,6 +70,14 @@ class ArtNetPlayer extends IPSModule
             $vid = (int)$this->ReadPropertyInteger($prop);
             if ($vid > 0 && IPS_VariableExists($vid)) $this->RegisterMessage($vid, VM_UPDATE);
         }
+        // KNX-Abs-Dim je Gruppe registrieren
+        foreach ($this->GroupKnxMap() as $m) {
+            $vid = (int)($m['dim'] ?? 0);
+            if ($vid > 0 && IPS_VariableExists($vid)) $this->RegisterMessage($vid, VM_UPDATE);
+        }
+
+        // Gruppen-Dimmer-Variablen aus dem Tool anlegen/aktualisieren
+        $this->SyncGroupVars($this->AskGroups());
 
         $this->SendToParent('refresh', array('player' => $pid));
     }
@@ -155,6 +165,13 @@ class ArtNetPlayer extends IPSModule
     public function RequestAction($Ident, $Value)
     {
         $pid = (int)$this->ReadPropertyInteger('PlayerID');
+        if (strpos($Ident, 'Grp') === 0) {           // Gruppen-Dimmer (Grp{id})
+            $gid = (int)substr($Ident, 3);
+            $v = max(0, min(100, (int)$Value));
+            $this->SetValueSafe($Ident, $v);
+            $this->SendToParent('group', array('player' => $pid, 'id' => $gid, 'value' => $v));
+            return;
+        }
         if ($Ident == 'Power') {
             $on = (bool)$Value;
             $this->SetValueSafe('Power', $on);
@@ -203,6 +220,18 @@ class ArtNetPlayer extends IPSModule
                 $this->SetBuffer('RelDir', $up ? '1' : '0');
                 $this->KnxDimStep();
                 $this->SetTimerInterval('KnxDim', 700);
+            }
+            return;
+        }
+
+        // KNX-Abs-Dim je Gruppe
+        foreach ($this->GroupKnxMap() as $m) {
+            if ((int)($m['dim'] ?? 0) === $SenderID && $SenderID > 0) {
+                $gid = (int)($m['group'] ?? 0);
+                $v = max(0, min(100, (int)GetValue($SenderID)));
+                $this->SetValueSafe('Grp' . $gid, $v);
+                $this->SendToParent('group', array('player' => $pid, 'id' => $gid, 'value' => $v));
+                return;
             }
         }
     }
@@ -255,6 +284,22 @@ class ArtNetPlayer extends IPSModule
         if ($sl > 0 && IPS_VariableExists($sl) && (int)GetValue($sl) != $lvl) @RequestAction($sl, $lvl);
         $sw = (int)$this->ReadPropertyInteger('KnxStatusSwitchVarID');
         if ($sw > 0 && IPS_VariableExists($sw) && (bool)GetValue($sw) != $on) @RequestAction($sw, $on);
+
+        // Gruppen-Dimmer: Variablen anlegen/aktualisieren + KNX-Status je Gruppe
+        if (isset($me['groups']) && is_array($me['groups'])) {
+            $this->SyncGroupVars($me['groups']);
+            $map = $this->GroupKnxMap();
+            foreach ($me['groups'] as $g) {
+                $gid = (int)$g['id'];
+                $lvl = $on ? (int)$g['level'] : 0;   // Aus -> Status 0
+                foreach ($map as $m) {
+                    if ((int)($m['group'] ?? 0) === $gid) {
+                        $sv = (int)($m['status'] ?? 0);
+                        if ($sv > 0 && IPS_VariableExists($sv) && (int)GetValue($sv) != $lvl) @RequestAction($sv, $lvl);
+                    }
+                }
+            }
+        }
         return '';
     }
 
@@ -269,10 +314,21 @@ class ArtNetPlayer extends IPSModule
             $optOn[] = array('caption' => $n, 'value' => $n);
             $optOff[] = array('caption' => $n, 'value' => $n);
         }
+        // Gruppen-Optionen fuer die KNX-Zuordnungsliste
+        $optGrp = array(array('caption' => '—', 'value' => 0));
+        foreach ($this->AskGroups() as $g) {
+            $optGrp[] = array('caption' => (string)$g['name'] . ' (#' . (int)$g['id'] . ')', 'value' => (int)$g['id']);
+        }
         foreach ($form['elements'] as &$el) {
             if (!isset($el['name'])) continue;
             if ($el['name'] == 'OnProgram') $el['options'] = $optOn;
             if ($el['name'] == 'OffProgram') $el['options'] = $optOff;
+            if ($el['name'] == 'GroupKnx' && isset($el['columns'])) {
+                foreach ($el['columns'] as &$col) {
+                    if (($col['name'] ?? '') == 'group') $col['edit']['options'] = $optGrp;
+                }
+                unset($col);
+            }
         }
         return json_encode($form);
     }
@@ -284,6 +340,44 @@ class ArtNetPlayer extends IPSModule
             'DataID' => $this->DataID, 'cmd' => 'get_programs', 'arg' => array('player' => $pid))));
         $d = json_decode((string)$res, true);
         return (isset($d['programs']) && is_array($d['programs'])) ? $d['programs'] : array();
+    }
+
+    // ---- Gruppen-Dimmer ----
+    private function GroupKnxMap()
+    {
+        $j = json_decode((string)$this->ReadPropertyString('GroupKnx'), true);
+        return is_array($j) ? $j : array();
+    }
+
+    // Gruppen vom Tool holen (Namen/Level/Adressen)
+    private function AskGroups()
+    {
+        $pid = (int)$this->ReadPropertyInteger('PlayerID');
+        $res = @$this->SendDataToParent(json_encode(array(
+            'DataID' => $this->DataID, 'cmd' => 'get_groups', 'arg' => array('player' => $pid))));
+        $d = json_decode((string)$res, true);
+        return (isset($d['groups']) && is_array($d['groups'])) ? $d['groups'] : array();
+    }
+
+    // Je Gruppe eine Dimmer-Variable (Grp{id}) anlegen/aktualisieren; verwaiste entfernen.
+    private function SyncGroupVars($groups)
+    {
+        $keep = array();
+        $pos = 60;
+        foreach ($groups as $g) {
+            $gid = (int)$g['id'];
+            $ident = 'Grp' . $gid;
+            $keep[$ident] = true;
+            $this->MaintainVariable($ident, (string)$g['name'], 1 /*Integer*/, 'ANP.Percent', $pos++, true);
+            $this->EnableAction($ident);
+            if (isset($g['level'])) $this->SetValueSafe($ident, (int)$g['level']);
+        }
+        foreach (IPS_GetChildrenIDs($this->InstanceID) as $cid) {
+            $ident = IPS_GetObject($cid)['ObjectIdent'];
+            if (strpos($ident, 'Grp') === 0 && !isset($keep[$ident])) {
+                $this->UnregisterVariable($ident);
+            }
+        }
     }
 
     // ---- Profile / Helfer ----

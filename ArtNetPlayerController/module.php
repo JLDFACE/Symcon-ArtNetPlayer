@@ -43,6 +43,20 @@ class ArtNetPlayerController extends IPSModule
         $a = (isset($d['arg']) && is_array($d['arg'])) ? $d['arg'] : array();
         $pid = isset($a['player']) ? (int)$a['player'] : 0;
 
+        // Gruppen eines Players zurueckgeben (fuer die Dimmer-Variablen/KNX-Zuordnung)
+        if ($cmd == 'get_groups') {
+            $ok = true;
+            $body = $this->Http('GET', '/status', null, $ok);
+            $st = json_decode($body, true);
+            $groups = array();
+            if (isset($st['engine']['players'])) {
+                foreach ($st['engine']['players'] as $p) {
+                    if ((int)$p['id'] == $pid) { $groups = isset($p['groups']) ? $p['groups'] : array(); break; }
+                }
+            }
+            return json_encode(array('ok' => $ok, 'groups' => $groups));
+        }
+
         // Programme eines Players zurueckgeben (fuer die Ein/Aus-Programmauswahl)
         if ($cmd == 'get_programs') {
             $ok = true;
@@ -62,6 +76,7 @@ class ArtNetPlayerController extends IPSModule
             case 'stop':   $this->Http('POST', "/player/$pid/stop", null, $ok); break;
             case 'pause':  $this->Http('POST', "/player/$pid/pause", null, $ok); break;
             case 'master': $this->Http('POST', "/player/$pid/master", array('value' => (int)$a['value']), $ok); break;
+            case 'group':  $this->Http('POST', "/player/$pid/group", array('id' => (int)$a['id'], 'value' => (int)$a['value']), $ok); break;
             case 'play':   $this->Http('POST', "/player/$pid/play", array('program' => (string)$a['program']), $ok); break;
             case 'play_off': $this->Http('POST', "/player/$pid/play_off", array('program' => (string)$a['program']), $ok); break;
             case 'config': $this->Http('POST', "/player/$pid/config", isset($a['config']) ? $a['config'] : array(), $ok); break;
