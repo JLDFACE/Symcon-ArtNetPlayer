@@ -10,6 +10,8 @@
     "{AE7C1A00-0003-47AE-B000-0000000000E3}"
   ],
   "childRequirements": [],
-  "implemented": [],
+  "implemented": [
+    "{AE7C1A00-0003-47AE-B000-0000000000E3}"
+  ],
   "prefix": "ANPP"
 }
