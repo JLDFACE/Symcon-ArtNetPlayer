@@ -105,12 +105,7 @@ class ArtNetPlayer extends IPSModule
         if (!$isOff) {
             // Power meldet "an" – laeuft aber gerade das Aus-Programm? Dann auch als aus behandeln.
             $offProg = (string)$this->ReadPropertyString('OffProgram');
-            if ($offProg !== '') {
-                $names = json_decode($this->GetBuffer('Programs'), true);
-                $idx = (int)$this->GetValue('Program');
-                $cur = (is_array($names) && isset($names[$idx])) ? (string)$names[$idx] : '';
-                if ($cur === $offProg) $isOff = true;
-            }
+            if ($offProg !== '' && $this->CurrentProgram() === $offProg) $isOff = true;
         }
         if (!$isOff) return;
         $this->SetValueSafe('Power', true);
@@ -122,17 +117,38 @@ class ArtNetPlayer extends IPSModule
         }
     }
 
-    // Normaler Ein/Aus: OnProgram spielen bzw. OffProgram als Aus-Szene abspielen
-    // (laeuft einmal durch, dann echtes Aus). Ohne Programm: /on bzw. /off.
+    // Normaler Ein/Aus.
+    // Ein: OnProgram spielen (sonst /on).
+    // Aus: NUR wenn wir gerade auf der An-Szene sind, ueber die Aus-Szene
+    //      (OffProgram einmal durch -> echtes Aus). Auf jeder anderen Szene
+    //      (oder ohne On-/OffProgram): direkt aus (/off).
     private function _switch($on)
     {
         $pid = (int)$this->ReadPropertyInteger('PlayerID');
-        $prog = $on ? (string)$this->ReadPropertyString('OnProgram') : (string)$this->ReadPropertyString('OffProgram');
-        if ($prog !== '') {
-            $this->SendToParent($on ? 'play' : 'play_off', array('player' => $pid, 'program' => $prog));
-        } else {
-            $this->SendToParent($on ? 'on' : 'off', array('player' => $pid));
+        if ($on) {
+            $onProg = (string)$this->ReadPropertyString('OnProgram');
+            if ($onProg !== '') {
+                $this->SendToParent('play', array('player' => $pid, 'program' => $onProg));
+            } else {
+                $this->SendToParent('on', array('player' => $pid));
+            }
+            return;
         }
+        $off = (string)$this->ReadPropertyString('OffProgram');
+        $onProg = (string)$this->ReadPropertyString('OnProgram');
+        if ($off !== '' && $onProg !== '' && $this->CurrentProgram() === $onProg) {
+            $this->SendToParent('play_off', array('player' => $pid, 'program' => $off));  // war auf An-Szene
+        } else {
+            $this->SendToParent('off', array('player' => $pid));                          // andere Szene -> direkt aus
+        }
+    }
+
+    // Name des aktuell geladenen Programms (aus Program-Index + Programmliste).
+    private function CurrentProgram()
+    {
+        $names = json_decode($this->GetBuffer('Programs'), true);
+        $idx = (int)$this->GetValue('Program');
+        return (is_array($names) && isset($names[$idx])) ? (string)$names[$idx] : '';
     }
 
     // ---- WebFront/Action ----
